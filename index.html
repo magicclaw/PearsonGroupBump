@@ -1,0 +1,271 @@
+<html>
+<head>
+<script src="http://10.180.131.90:8123/socket.io/socket.io.js"></script>
+<script>
+	
+	var socket = null;
+	var trackingPoints = [];
+	var trackingPointsLength = 0;
+	var maxTrackingPoints = 100;
+	var bumpAccelerationThreshold = 5; //10; // m/s^2; gravity = 9.81 m/s^2
+	var bumpRebounding = false;
+	var maxAccelerationChange = 0;
+	
+	function doMomentaryDivDisplay(theDiv) {
+		theDiv.style.display = "block";
+		setTimeout(function() {
+			theDiv.style.display = "none";
+		}, 1000);
+	}
+	
+	function initSocket() {
+		logEvent('Initializing socket.io connection...');
+		socket = io.connect('http://10.180.131.90:8123');
+		socket.on('matchedBump', function(bumpData) {
+			doMomentaryDivDisplay(document.getElementById('bumpMatched'));
+		});
+		socket.on('unmatchedBump', function(bumpData) {
+			doMomentaryDivDisplay(document.getElementById('bumpUnmatched'));
+		});
+		socket.on('ping', function(data) {
+			data.clientPongTime = (new Date).getTime();
+			socket.emit('pong', data);
+		});
+		logEvent('Socket.io connection initialized.');
+	}
+	
+	function logEvent(eventText) {
+		//var logDiv = document.getElementById('log');
+		//logDiv.innerHTML += "<br/>" + eventText;
+		console.log(eventText);
+	}
+	
+	function handleSpacebarKeyPress(timestamp) {
+		addTrackingPoint(timestamp, function(trackingPoint) {
+			socket.emit('deviceBumped', trackingPoint);
+			doMomentaryDivDisplay(document.getElementById('bump'));
+		});
+	}
+	
+	function handleWindowKeyPress(event) {
+		if (!event) var event = window.event;
+		if (event.keyCode == 32) { //spacebar
+			handleSpacebarKeyPress(event.timeStamp);
+		}
+		return true;
+	}
+	
+	function isDeviceUnsupported() {
+		logEvent('Checking device support...');
+		var errDiv = document.getElementById('error');
+		var errText = '';
+		//if (!window.DeviceMotionEvent) {
+		//	//Tell user they can't play. Sorry!
+		//	if (errText.length > 0) errText += ', ';
+		//	errText += 'accelerometer services required';
+		//}
+		//if (!window.DeviceOrientationEvent) {
+		//	//Tell user they can't play. Sorry!
+		//	if (errText.length > 0) errText += ', ';
+		//	errText += 'orientation services required';
+		//}
+		if (!navigator.geolocation) {
+			if (errText.length > 0) errText += ', ';
+			errText += 'geolocation services required';
+		}
+		errDiv.innerHTML = 'Device Unsupported: ' + errText;
+		logEvent(errText);
+		logEvent('Device support check complete.');
+		return errText != '';
+	}
+	
+	function addTrackingPoint(xlEvent, callback) {
+		//logEvent('Saving tracking point...');
+		var eventTimestamp = null;
+		if (!xlEvent.timeStamp) {
+			//we received a timestamp, not an xlEvent!
+			xlEvent = null;
+			eventTimestamp = xlEvent;
+		}
+
+		navigator.geolocation.getCurrentPosition(function(currentPosition) {
+			var trackingPoint = {
+				position: currentPosition,
+				timestamp: eventTimestamp || currentPosition.timestamp
+			};
+			
+			if (xlEvent) {
+				var totalAcceleration =
+					Math.abs(xlEvent.acceleration.x) +
+					Math.abs(xlEvent.acceleration.y) +
+					Math.abs(xlEvent.acceleration.z);
+				trackingPoint.acceleration = {
+					components: xlEvent.acceleration,
+					rotation: xlEvent.rotationRate,
+					absTotal: totalAcceleration,
+					timestamp: xlEvent.timeStamp
+				};
+				trackingPoint.totalAbsXl = totalAcceleration;
+				trackingPoint.timestamp = xlEvent.timeStamp;
+			}
+			
+			trackingPoints.push(trackingPoint);
+			if (++trackingPointsLength > maxTrackingPoints) {
+				trackingPoints.shift();
+				trackingPointsLength--;
+			}
+			
+			//logEvent('Tracking point saved.');
+			
+			callback(trackingPoint);
+		});
+	}
+	
+	function doesBumpExceedThreshold(trackingPoint, prevTrackingPoint) {
+		var prevTotalAbsXl = (trackingPointsLength != null) ? prevTrackingPoint.acceleration.absTotal : 0;
+		var measuredAccelerationChange = trackingPoint.acceleration.absTotal // - prevTotalAbsXl
+		if (maxAccelerationChange < measuredAccelerationChange) {
+			maxAccelerationChange = measuredAccelerationChange;
+			divMaxAccelerationChange = document.getElementById('maxAccelerationChange');
+			divMaxAccelerationChange.innerHTML = 'Max Acceleration Change: ' + maxAccelerationChange;
+			var mac = maxAccelerationChange;
+			setTimeout(function() {
+				if (mac == maxAccelerationChange) {
+					maxAccelerationChange = 0;
+					//logEvent('reset maxAccelerationChange');
+				}
+			}, 5000);
+		}
+		return measuredAccelerationChange > bumpAccelerationThreshold;
+	}
+		
+	function isBump(trackingPoint) {
+		var bumpDetected = false;
+		var prevTrackingPoint = (trackingPointsLength >= 2) ? trackingPoints[trackingPointsLength - 2] : null;
+		if (doesBumpExceedThreshold(trackingPoint, prevTrackingPoint)) {
+			if (!bumpRebounding) {
+				bumpDetected = true;
+				bumpRebounding = true;
+			} else {
+				bumpDetected = false;
+				bumpRebounding = false;
+			}
+		}
+		
+		return bumpDetected;
+	}
+	
+	function handleBump(trackingPoint) {
+		//logEvent('Checking for and handling potential bump...');
+		if (isBump(trackingPoint)) {
+			socket.emit('deviceBumped', trackingPoint);
+			doMomentaryDivDisplay(document.getElementById('bump'));
+		} else {
+		}
+		//logEvent('Potential bump handled.');
+	}
+	
+	function showAcceleration(event) {
+		var xlDiv = document.getElementById('acceleration');
+		xlDiv.innerHTML =
+			'Device Acceleration:<br/>' +
+			'    - Acceleration: ' + '<br/>' +
+			'        x: ' + event.acceleration.x + '<br/>' +
+			'        y: ' + event.acceleration.y + '<br/>' +
+			'        z: ' + event.acceleration.z + '<br/>' +
+			'    - Acceleration (Including Gravity): ' + '<br/>' +
+			'        x: ' + event.accelerationIncludingGravity.x + '<br/>' +
+			'        y: ' + event.accelerationIncludingGravity.y + '<br/>' +
+			'        z: ' + event.accelerationIncludingGravity.z + '<br/>' +
+			'    - Rotation Rate: ' + '<br/>' +
+			'        alpha: ' + event.rotationRate.alpha + '<br/>' +
+			'         beta: ' + event.rotationRate.beta + '<br/>' +
+			'        gamma: ' + event.rotationRate.gamma + '<br/>' +
+			'Interval: ' + event.interval
+	}
+	
+	//function showOrientation(event) {
+	//	var orDiv = document.getElementById('orientation');
+	//	orDiv.innerHTML =
+	//	    'Device Orientation:<br/>' +
+	//		'    - Absolute: ' + event.absolute + '<br/>' + 
+	//		'    -    Alpha: ' + event.alpha + '<br/>' + 
+	//		'    -     Beta: ' + event.beta + '<br/>' + 
+	//		'    -    Gamma: ';
+	//}
+	
+	function showPosition(position) {
+		var locDiv = document.getElementById('location');
+		locDiv.innerHTML =
+			'Device Position:<br/>' +
+			'    - Latitude: ' + position.coords.latitude + '<br/>' +
+			'    - Longitude: ' + position.coords.longitude + '<br/>' +
+			'    - Accuracy: ' + position.coords.accuracy + '<br/>' + 
+			'    - Altitude: ' + position.coords.altitude + '<br/>' + 
+			'    - Altitude Accuracy: ' + position.coords.altitudeAccuracy + '<br/>' +
+			'    - Heading: ' + position.coords.heading + '<br/>' +
+			'    - Speed: ' + position.coords.speed + '<br/>' + 
+			'    - Time Stamp: ' + position.timestamp;
+	}
+	
+	function getAndShowPosition() {
+		navigator.geolocation.getCurrentPosition(showPosition);
+	}
+	
+	function sendUserInfo(id) {
+		socket.emit('setUser', {userId: id}); 
+	}
+	
+	function addDeviceListeners() {
+		logEvent('Adding device listeners...');
+		window.addEventListener('devicemotion', function(event) {
+			//showAcceleration(event);
+			addTrackingPoint(event, handleBump);
+		});
+		//window.addEventListener('deviceorientation', function(event) {
+		//	showOrientation(event);
+		//});
+		//setInterval(getAndShowPosition, 1000);
+		logEvent('Device listeners added...');
+	}
+	
+	function saveUserInfo() {
+		var userId = document.getElementById('userName').value;
+		sendUserInfo(userId);
+	}
+	
+	function startup() {
+		logEvent('Starting up...');
+		initSocket();
+		if (!isDeviceUnsupported()) {
+			addDeviceListeners();
+		}
+		logEvent('Startup complete.');
+	};
+	
+	window.onload = startup;
+	window.onkeypress = handleWindowKeyPress;
+	
+</script>
+</head>
+<body>
+	<div id="error" style="display:none"></div>
+	<div id="location" style="display:none"></div>
+	<div id="acceleration" style="display:none"></div>
+	<div id="orientation" style="display:none"></div>
+	<div id="maxAccelerationChange" style="display:none"></div>
+	<div id="bump" style="display:none">BUMP detected!</div>
+	<div id="bumpMatched" style="display:none">BUMP matched!</div>
+	<div id="bumpUnmatched" style="display:none">BUMP <i>not</i> matched!</div>
+	
+	
+	<div id="userInfo">
+		<label for="userId">Username:</label>
+		<input id="userName" type="text" name="userName"/><br/>
+		<input type="button" value="Save" name="saveUserInfo" onclick="saveUserInfo()"/><br/>
+	</div>
+	
+	
+	<div id="log"></div>
+</body>
+</html>
