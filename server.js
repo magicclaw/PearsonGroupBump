@@ -319,6 +319,11 @@ function deviceBumpedHandler(socket, bumpData) {
 function setDeviceUser(socket, userData) {
 	//console.log('setting user data: ' + userData.userId);
 	var client = clients[socket.id];
+	if (!client) {
+		client = clients[socket.id] = {
+			socket: socket
+		}
+	}
 	if (userData.userId) {
 		//console.log('setting user ' + socket.id + ' userId = ' + userData.userId + '...');
 		client.userId = userData.userId;
