@@ -1,8 +1,9 @@
 var app = require('http').createServer(handler)
   , sio = require('socket.io').listen(app)
-  , fs = require('fs')
+  , fs = require('fs');
 
-app.listen(8123);
+var port = process.env.PORT || 8123;
+app.listen(port);
 
 function handler (req, res) {
   fs.readFile(__dirname + '/index.html',
@@ -272,7 +273,7 @@ function adjustForOffsetAndLatency(bumpData) {
 	}
 	var clientTimeOffset = client.timeOffset;
 	var clientLatency = client.latency;
-	
+
 	bumpData.timestamp -= clientLatency + clientTimeOffset;
 }
 
@@ -311,7 +312,7 @@ function deviceBumpedHandler(socket, bumpData) {
 			}, msCloseEnough * 3);
 			//console.log('matched bump!');
 			//flushBumpsAndGroupsToConsole();
-		}			
+		}
 	}, msCloseEnough);
 }
 
@@ -333,17 +334,17 @@ sio.configure(function() {
 sio.sockets.on('connection', function(socket) {
 	console.log('Connection from ' + socket.id);
 	checkClientLatency(socket);
-	
+
 	socket.on('setUser', function(data) {
 		//console.log('setUser!');
 		setDeviceUser(socket, data);
 	});
-		
+
 	socket.on('deviceBumped', function(data) {
 		//console.log('bump!');
 		deviceBumpedHandler(socket, data);
 	});
-	
+
 	socket.on('pong', function(data) {
 		//console.log('pong!');
 		checkClientLatencyListener(socket, data);
