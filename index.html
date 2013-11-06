@@ -1,6 +1,6 @@
 <html>
 <head>
-<script src="http://desolate-cove-1264.herokuapp.com/socket.io/socket.io.js"></script>
+<script src="/socket.io/socket.io.js"></script>
 <script>
 
 	var socket = null;
@@ -19,8 +19,9 @@
 	}
 
 	function initSocket() {
+		var host = location.origin.replace(/^http/, 'ws')
 		logEvent('Initializing socket.io connection...');
-		socket = io.connect('http://desolate-cove-1264.herokuapp.com');
+		socket = io.connect(host);
 		socket.on('matchedBump', function(bumpData) {
 			doMomentaryDivDisplay(document.getElementById('bumpMatched'));
 		});
