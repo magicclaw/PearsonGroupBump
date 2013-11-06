@@ -1,8 +1,8 @@
 <html>
 <head>
-<script src="http://10.180.131.90:8123/socket.io/socket.io.js"></script>
+<script src="http://desolate-cove-1264.herokuapp.com/socket.io/socket.io.js"></script>
 <script>
-	
+
 	var socket = null;
 	var trackingPoints = [];
 	var trackingPointsLength = 0;
@@ -10,17 +10,17 @@
 	var bumpAccelerationThreshold = 5; //10; // m/s^2; gravity = 9.81 m/s^2
 	var bumpRebounding = false;
 	var maxAccelerationChange = 0;
-	
+
 	function doMomentaryDivDisplay(theDiv) {
 		theDiv.style.display = "block";
 		setTimeout(function() {
 			theDiv.style.display = "none";
 		}, 1000);
 	}
-	
+
 	function initSocket() {
 		logEvent('Initializing socket.io connection...');
-		socket = io.connect('http://10.180.131.90:8123');
+		socket = io.connect('http://desolate-cove-1264.herokuapp.com');
 		socket.on('matchedBump', function(bumpData) {
 			doMomentaryDivDisplay(document.getElementById('bumpMatched'));
 		});
@@ -33,20 +33,20 @@
 		});
 		logEvent('Socket.io connection initialized.');
 	}
-	
+
 	function logEvent(eventText) {
 		//var logDiv = document.getElementById('log');
 		//logDiv.innerHTML += "<br/>" + eventText;
 		console.log(eventText);
 	}
-	
+
 	function handleSpacebarKeyPress(timestamp) {
 		addTrackingPoint(timestamp, function(trackingPoint) {
 			socket.emit('deviceBumped', trackingPoint);
 			doMomentaryDivDisplay(document.getElementById('bump'));
 		});
 	}
-	
+
 	function handleWindowKeyPress(event) {
 		if (!event) var event = window.event;
 		if (event.keyCode == 32) { //spacebar
@@ -54,7 +54,7 @@
 		}
 		return true;
 	}
-	
+
 	function isDeviceUnsupported() {
 		logEvent('Checking device support...');
 		var errDiv = document.getElementById('error');
@@ -78,7 +78,7 @@
 		logEvent('Device support check complete.');
 		return errText != '';
 	}
-	
+
 	function addTrackingPoint(xlEvent, callback) {
 		//logEvent('Saving tracking point...');
 		var eventTimestamp = null;
@@ -93,7 +93,7 @@
 				position: currentPosition,
 				timestamp: eventTimestamp || currentPosition.timestamp
 			};
-			
+
 			if (xlEvent) {
 				var totalAcceleration =
 					Math.abs(xlEvent.acceleration.x) +
@@ -108,19 +108,19 @@
 				trackingPoint.totalAbsXl = totalAcceleration;
 				trackingPoint.timestamp = xlEvent.timeStamp;
 			}
-			
+
 			trackingPoints.push(trackingPoint);
 			if (++trackingPointsLength > maxTrackingPoints) {
 				trackingPoints.shift();
 				trackingPointsLength--;
 			}
-			
+
 			//logEvent('Tracking point saved.');
-			
+
 			callback(trackingPoint);
 		});
 	}
-	
+
 	function doesBumpExceedThreshold(trackingPoint, prevTrackingPoint) {
 		var prevTotalAbsXl = (trackingPointsLength != null) ? prevTrackingPoint.acceleration.absTotal : 0;
 		var measuredAccelerationChange = trackingPoint.acceleration.absTotal // - prevTotalAbsXl
@@ -138,7 +138,7 @@
 		}
 		return measuredAccelerationChange > bumpAccelerationThreshold;
 	}
-		
+
 	function isBump(trackingPoint) {
 		var bumpDetected = false;
 		var prevTrackingPoint = (trackingPointsLength >= 2) ? trackingPoints[trackingPointsLength - 2] : null;
@@ -151,10 +151,10 @@
 				bumpRebounding = false;
 			}
 		}
-		
+
 		return bumpDetected;
 	}
-	
+
 	function handleBump(trackingPoint) {
 		//logEvent('Checking for and handling potential bump...');
 		if (isBump(trackingPoint)) {
@@ -164,7 +164,7 @@
 		}
 		//logEvent('Potential bump handled.');
 	}
-	
+
 	function showAcceleration(event) {
 		var xlDiv = document.getElementById('acceleration');
 		xlDiv.innerHTML =
@@ -183,39 +183,39 @@
 			'        gamma: ' + event.rotationRate.gamma + '<br/>' +
 			'Interval: ' + event.interval
 	}
-	
+
 	//function showOrientation(event) {
 	//	var orDiv = document.getElementById('orientation');
 	//	orDiv.innerHTML =
 	//	    'Device Orientation:<br/>' +
-	//		'    - Absolute: ' + event.absolute + '<br/>' + 
-	//		'    -    Alpha: ' + event.alpha + '<br/>' + 
-	//		'    -     Beta: ' + event.beta + '<br/>' + 
+	//		'    - Absolute: ' + event.absolute + '<br/>' +
+	//		'    -    Alpha: ' + event.alpha + '<br/>' +
+	//		'    -     Beta: ' + event.beta + '<br/>' +
 	//		'    -    Gamma: ';
 	//}
-	
+
 	function showPosition(position) {
 		var locDiv = document.getElementById('location');
 		locDiv.innerHTML =
 			'Device Position:<br/>' +
 			'    - Latitude: ' + position.coords.latitude + '<br/>' +
 			'    - Longitude: ' + position.coords.longitude + '<br/>' +
-			'    - Accuracy: ' + position.coords.accuracy + '<br/>' + 
-			'    - Altitude: ' + position.coords.altitude + '<br/>' + 
+			'    - Accuracy: ' + position.coords.accuracy + '<br/>' +
+			'    - Altitude: ' + position.coords.altitude + '<br/>' +
 			'    - Altitude Accuracy: ' + position.coords.altitudeAccuracy + '<br/>' +
 			'    - Heading: ' + position.coords.heading + '<br/>' +
-			'    - Speed: ' + position.coords.speed + '<br/>' + 
+			'    - Speed: ' + position.coords.speed + '<br/>' +
 			'    - Time Stamp: ' + position.timestamp;
 	}
-	
+
 	function getAndShowPosition() {
 		navigator.geolocation.getCurrentPosition(showPosition);
 	}
-	
+
 	function sendUserInfo(id) {
-		socket.emit('setUser', {userId: id}); 
+		socket.emit('setUser', {userId: id});
 	}
-	
+
 	function addDeviceListeners() {
 		logEvent('Adding device listeners...');
 		window.addEventListener('devicemotion', function(event) {
@@ -228,12 +228,12 @@
 		//setInterval(getAndShowPosition, 1000);
 		logEvent('Device listeners added...');
 	}
-	
+
 	function saveUserInfo() {
 		var userId = document.getElementById('userName').value;
 		sendUserInfo(userId);
 	}
-	
+
 	function startup() {
 		logEvent('Starting up...');
 		initSocket();
@@ -242,10 +242,10 @@
 		}
 		logEvent('Startup complete.');
 	};
-	
+
 	window.onload = startup;
 	window.onkeypress = handleWindowKeyPress;
-	
+
 </script>
 </head>
 <body>
@@ -257,15 +257,15 @@
 	<div id="bump" style="display:none">BUMP detected!</div>
 	<div id="bumpMatched" style="display:none">BUMP matched!</div>
 	<div id="bumpUnmatched" style="display:none">BUMP <i>not</i> matched!</div>
-	
-	
+
+
 	<div id="userInfo">
 		<label for="userId">Username:</label>
 		<input id="userName" type="text" name="userName"/><br/>
 		<input type="button" value="Save" name="saveUserInfo" onclick="saveUserInfo()"/><br/>
 	</div>
-	
-	
+
+
 	<div id="log"></div>
 </body>
 </html>
